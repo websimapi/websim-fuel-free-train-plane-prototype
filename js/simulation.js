@@ -17,6 +17,10 @@ export class Simulation {
         this.maxSpeed = 100;
         this.acceleration = 0;
         
+        // Physics Settings
+        this.gravity = 1.62; // Default to Moon (fun default)
+        this.planeVelocity = new THREE.Vector3();
+        
         // Audio
         this.audioContext = null;
         this.humOsc = null;
@@ -104,9 +108,12 @@ export class Simulation {
         if (this.tether.targetLength > 100) this.tether.targetLength = 100;
     }
 
+    setGravity(g) {
+        this.gravity = parseFloat(g);
+    }
+
     update(dt) {
-        // Physics: Move Train
-        // Simple velocity integration with drag
+        // --- TRAIN PHYSICS ---
         if (this.acceleration !== 0) {
             this.speed += this.acceleration * dt * 50;
         } else {
@@ -114,53 +121,115 @@ export class Simulation {
             this.speed *= 0.98;
         }
 
-        // Clamp speed
         if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
         if (this.speed < -this.maxSpeed) this.speed = -this.maxSpeed;
-        
-        // Stop completely if slow
         if (Math.abs(this.speed) < 0.1) this.speed = 0;
 
         // Apply Position
         this.train.mesh.position.z += this.speed * dt;
 
-        // Reset world if gone too far to prevent float errors (Infinite loop effect)
-        if (Math.abs(this.train.mesh.position.z) > 1000) {
-            const offset = this.train.mesh.position.z;
-            this.train.mesh.position.z = 0;
-            this.plane.mesh.position.z -= offset;
-            // Note: In a real infinite runner, we'd cycle track segments. 
-            // Here we just let it run on the long static track setup in SceneManager.
-            // For the purpose of this prototype, we will just let it go until bounds.
-            // Actually, let's just bounce back or loop visually. 
-            // For simplicity in this prototype, we'll let it run. 
-        }
+        // Update Infinite World
+        this.scene.sceneManagerRef?.updateChunks(this.train.mesh.position.z);
 
-        // Physics: Plane follows Train
-        // The plane tries to stay directly above the train at height derived from tether length
-        // We simulate a bit of drag/lag for the plane
+
+        // --- PLANE PHYSICS (GRAVITY BASED) ---
+        // Basic Force Simulation
+        // Forces: Gravity (Down), Lift (Up), Tension (Towards Train), Drag (Opposite Velocity)
         
-        // Tether Physics
         this.tether.updateLength(dt);
         const currentWireLength = this.tether.currentLength;
-        
-        // Ideally: Plane Z = Train Z - (Drag based on speed)
-        // Plane Y = sqrt(WireLength^2 - HorizontalDistance^2)
-        // For visual stability:
-        const targetZ = this.train.mesh.position.z - (this.speed * 0.1); 
-        const targetX = this.train.mesh.position.x; // Stay aligned horizontally
-        
-        // Calculate Height based on wire length (pythagorean approximation, assume some horizontal drag)
-        const dragOffset = Math.abs(this.train.mesh.position.z - targetZ);
-        let height = Math.sqrt(Math.max(0, (currentWireLength * currentWireLength) - (dragOffset * dragOffset)));
-        if (height < 5) height = 5; // Minimum height ground clearance
 
-        // Apply to Plane with smoothing
-        this.plane.mesh.position.x = THREE.MathUtils.lerp(this.plane.mesh.position.x, targetX, dt * 2);
-        this.plane.mesh.position.z = THREE.MathUtils.lerp(this.plane.mesh.position.z, targetZ, dt * 5);
-        this.plane.mesh.position.y = THREE.MathUtils.lerp(this.plane.mesh.position.y, height, dt * 2);
+        // 1. Gravity Force
+        // F = m*a. Let's work directly with accelerations for simplicity.
+        const gravityAccel = new THREE.Vector3(0, -this.gravity, 0);
 
-        // Plane Tilt (Bank) based on sway or movement
+        // 2. Lift Force
+        // Simplified: Lift is proportional to speed squared
+        // Lift is perpendicular to velocity, but for this glider, let's assume it's mostly Up.
+        // We need enough speed to counteract gravity.
+        // At 100km/h (27 m/s), we should fly easily on Earth.
+        // Lift = Coeff * Speed^2
+        const liftCoeff = 0.05; 
+        const speedSq = this.speed * this.speed;
+        const liftMag = liftCoeff * speedSq;
+        const liftAccel = new THREE.Vector3(0, liftMag, 0);
+
+        // 3. Apply Forces to Velocity
+        // Damping/Drag on plane itself
+        this.planeVelocity.multiplyScalar(0.99); // Air resistance
+        
+        // Add accelerations
+        this.planeVelocity.add(gravityAccel.multiplyScalar(dt));
+        this.planeVelocity.add(liftAccel.multiplyScalar(dt));
+
+        // Horizontal Drag (Lag behind train)
+        // The plane naturally wants to slow down due to air resistance
+        // We simulate this by pushing Z velocity towards 0 relative to world, 
+        // effectively making it lag if not pulled.
+        this.planeVelocity.z -= (this.planeVelocity.z - 0) * dt * 0.5;
+
+
+        // 4. Apply Velocity to Position
+        const nextPos = this.plane.mesh.position.clone().add(this.planeVelocity.clone().multiplyScalar(dt));
+
+        // 5. Constraints
+
+        // Ground Constraint
+        if (nextPos.y < 5) {
+            nextPos.y = 5;
+            this.planeVelocity.y = Math.max(0, this.planeVelocity.y); // Cancel downward velocity
+            // Add friction on ground
+            this.planeVelocity.x *= 0.9;
+            this.planeVelocity.z *= 0.9;
+        }
+
+        // Tether Constraint
+        // The plane cannot exceed wire length distance from train
+        // Note: Train has moved this frame already.
+        const trainPos = this.train.mesh.position.clone();
+        // Tether attach point on train is slightly higher
+        const trainAttach = trainPos.clone().add(new THREE.Vector3(0, 3.5, 0));
+        
+        const dist = nextPos.distanceTo(trainAttach);
+        
+        if (dist > currentWireLength) {
+            // Constraint violation: Pull plane back towards tether radius
+            const direction = nextPos.clone().sub(trainAttach).normalize();
+            nextPos.copy(trainAttach).add(direction.multiplyScalar(currentWireLength));
+
+            // Impulse transfer (Tension)
+            // If the plane hits the end of the rope, it gets pulled along by the train
+            // And also bounces/slides along the imaginary sphere of the tether
+            
+            // Simple approach: Project velocity onto the tangent plane of the sphere
+            // The component of velocity parallel to the rope is killed (inelastic) or reflected (elastic)
+            // Here we assume inelastic rope (it just pulls).
+            
+            // Getting pulled by train Z motion:
+            // If the train is moving, it drags the plane. 
+            // We approximate this by nudging the plane Z towards train Z if it's lagging
+            
+            // Reset velocity components that fight the constraint?
+            // Project velocity to be tangent to the sphere surface
+            const normal = direction.clone(); // Normal of the sphere at collision point
+            const velDotNorm = this.planeVelocity.dot(normal);
+            if (velDotNorm > 0) {
+                // Remove outward velocity
+                this.planeVelocity.sub(normal.multiplyScalar(velDotNorm));
+            }
+            
+            // Pull effect from train speed
+            // If the tether is taut and train is moving forward, plane gains Z velocity
+            if (this.speed > 0 && nextPos.z < trainAttach.z) {
+                 this.planeVelocity.z += (this.speed - this.planeVelocity.z) * dt * 2.0;
+            }
+        }
+
+        // Apply constrained position
+        this.plane.mesh.position.copy(nextPos);
+
+
+        // Plane Tilt (Visuals)
         this.plane.updateVisuals(dt, this.speed);
 
         // Update Tether geometry

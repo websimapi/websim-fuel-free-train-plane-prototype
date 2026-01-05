@@ -40,6 +40,64 @@ body, html {
     pointer-events: auto;
 }
 
+#gravity-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(40, 0, 0, 0.7);
+    border: 1px solid #ff4400;
+    padding: 15px;
+    color: white;
+    font-size: 14px;
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+    pointer-events: auto;
+    text-align: right;
+}
+
+.panel-label {
+    font-weight: bold;
+    color: #ffaa00;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+}
+
+.gravity-options {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 5px;
+    justify-content: flex-end;
+}
+
+.grav-btn {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid #ff4400;
+    color: #ffaa00;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 10px;
+    transition: all 0.2s;
+}
+
+.grav-btn:hover {
+    background: #ff4400;
+    color: black;
+}
+
+.grav-btn.active {
+    background: #ffaa00;
+    color: black;
+    border-color: #ffaa00;
+    font-weight: bold;
+}
+
+.current-g {
+    font-size: 10px;
+    color: #aaa;
+    margin-top: 5px;
+}
+
 .stat {
     margin-bottom: 5px;
     font-weight: bold;

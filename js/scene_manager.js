@@ -20,10 +20,6 @@ export class SceneManager {
         this.controls.maxDistance = 300;
         this.controls.maxPolarAngle = Math.PI - 0.1; // Allow looking up from below plane
 
-        // Make zoom smoother and more granular
-        this.controls.enableZoom = true;
-        this.controls.zoomSpeed = 0.3;
-
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 2);
         this.scene.add(ambientLight);
@@ -37,43 +33,100 @@ export class SceneManager {
     }
 
     createEnvironment() {
-        // Grid Floor
-        const gridHelper = new THREE.GridHelper(2000, 200, 0x112233, 0x0a1122);
-        this.scene.add(gridHelper);
+        // Shared Geometries and Materials for Chunks
+        this.chunkSize = 200;
+        this.chunks = new Map(); // Store active chunks by index
 
-        // Infinite Rail illusion (Visual only, physics is generic)
-        const railGeo = new THREE.BoxGeometry(2000, 0.5, 1);
-        const railMat = new THREE.MeshStandardMaterial({ 
+        // Rail Asset
+        this.railGeometry = new THREE.BoxGeometry(this.chunkSize, 0.5, 1);
+        this.railMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x00aaff, 
             emissive: 0x0044aa,
             roughness: 0.2,
             metalness: 0.8
         });
+
+        // Ties Asset
+        this.tieGeometry = new THREE.BoxGeometry(6, 0.2, 1);
+        this.tieMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
         
-        const leftRail = new THREE.Mesh(railGeo, railMat);
-        leftRail.position.x = -2;
-        leftRail.position.y = 0.25;
-        this.scene.add(leftRail);
+        // Grid Floor (We will move this with the player)
+        this.gridHelper = new THREE.GridHelper(2000, 200, 0x112233, 0x0a1122);
+        this.scene.add(this.gridHelper);
 
-        const rightRail = new THREE.Mesh(railGeo, railMat);
-        rightRail.position.x = 2;
-        rightRail.position.y = 0.25;
-        this.scene.add(rightRail);
+        // Initial chunks
+        this.updateChunks(0);
+    }
 
-        // Ties
-        const tiesGeo = new THREE.BoxGeometry(6, 0.2, 1);
-        const tiesMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-        // Create instanced mesh for performance
-        const tiesCount = 400;
-        const tiesMesh = new THREE.InstancedMesh(tiesGeo, tiesMat, tiesCount);
+    updateChunks(trainZ) {
+        // Calculate current chunk index
+        const currentIndex = Math.floor(trainZ / this.chunkSize);
+        
+        // Define active range (keep e.g., 2 behind and 3 ahead)
+        const renderDistance = 3;
+        const minIndex = currentIndex - 2;
+        const maxIndex = currentIndex + renderDistance;
+
+        // Identify keys to keep
+        const validKeys = new Set();
+        for(let i = minIndex; i <= maxIndex; i++) {
+            validKeys.add(i);
+        }
+
+        // Remove old chunks
+        for (const [key, chunk] of this.chunks) {
+            if (!validKeys.has(key)) {
+                this.scene.remove(chunk);
+                // Dispose logic if needed, but since we reuse geometry, just removing from scene is enough for JS/Three
+                // The geometry is shared, so don't dispose that!
+                this.chunks.delete(key);
+            }
+        }
+
+        // Add new chunks
+        for (let i = minIndex; i <= maxIndex; i++) {
+            if (!this.chunks.has(i)) {
+                const chunk = this.createChunk(i);
+                this.chunks.set(i, chunk);
+                this.scene.add(chunk);
+            }
+        }
+
+        // Move Grid Helper to center on train Z for infinite illusion
+        // Snap to grid spacing (10 units) to avoid flickering
+        const snapZ = Math.floor(trainZ / 10) * 10;
+        this.gridHelper.position.z = snapZ;
+    }
+
+    createChunk(index) {
+        const group = new THREE.Group();
+        const zPos = index * this.chunkSize;
+        group.position.z = zPos;
+
+        // Rails
+        const leftRail = new THREE.Mesh(this.railGeometry, this.railMaterial);
+        leftRail.position.set(-2, 0.25, 0); // Local to chunk center
+        group.add(leftRail);
+
+        const rightRail = new THREE.Mesh(this.railGeometry, this.railMaterial);
+        rightRail.position.set(2, 0.25, 0);
+        group.add(rightRail);
+
+        // Ties (Instanced Mesh for this chunk)
+        const tiesCount = Math.floor(this.chunkSize / 5); // One tie every 5 units
+        const tiesMesh = new THREE.InstancedMesh(this.tieGeometry, this.tieMaterial, tiesCount);
         const dummy = new THREE.Object3D();
-        
+
         for (let i = 0; i < tiesCount; i++) {
-            dummy.position.set(0, 0.1, (i * 5) - 1000);
+            // Local Z inside the chunk (chunk ranges from -size/2 to size/2)
+            const localZ = (i * 5) - (this.chunkSize / 2) + 2.5;
+            dummy.position.set(0, 0.1, localZ);
             dummy.updateMatrix();
             tiesMesh.setMatrixAt(i, dummy.matrix);
         }
-        this.scene.add(tiesMesh);
+        group.add(tiesMesh);
+
+        return group;
     }
 
     updateCamera(trainPos, planePos) {

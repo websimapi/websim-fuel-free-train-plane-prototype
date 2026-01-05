@@ -16,7 +16,14 @@ class App {
 
         this.sceneManager = new SceneManager(this.renderer);
         this.simulation = new Simulation(this.sceneManager.scene);
+        
+        // Link SceneManager back to Simulation for infinite world updates
+        this.simulation.scene.sceneManagerRef = this.sceneManager;
+        
         this.inputManager = new InputManager(this.simulation);
+
+        // Setup UI Controls
+        this.setupUI();
 
         // Resize handler
         window.addEventListener('resize', () => this.onResize());
@@ -29,6 +36,37 @@ class App {
         // Animation Loop
         this.clock = new THREE.Clock();
         this.animate();
+    }
+
+    setupUI() {
+        const btns = document.querySelectorAll('.grav-btn');
+        const display = document.getElementById('g-val');
+        
+        btns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Visual update
+                btns.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                // Logic update
+                const g = e.target.getAttribute('data-g');
+                this.simulation.setGravity(g);
+                display.textContent = g;
+            });
+            
+            // Touch support
+            btn.addEventListener('touchstart', (e) => {
+                 e.preventDefault(); // Prevent double fire
+                 // Visual update
+                btns.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                // Logic update
+                const g = e.target.getAttribute('data-g');
+                this.simulation.setGravity(g);
+                display.textContent = g;
+            });
+        });
     }
 
     initAudio() {
