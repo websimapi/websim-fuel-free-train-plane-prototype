@@ -8,17 +8,17 @@ export class SceneManager {
         this.scene.fog = new THREE.FogExp2(0x050a15, 0.002);
 
         // Camera setup
-        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.camera.position.set(40, 20, -40);
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+        this.camera.position.set(30, 40, -50);
 
         // Controls
         this.controls = new OrbitControls(this.camera, renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
         this.controls.screenSpacePanning = false;
-        this.controls.minDistance = 10;
-        this.controls.maxDistance = 200;
-        this.controls.maxPolarAngle = Math.PI / 2; // Prevent going underground
+        this.controls.minDistance = 5;
+        this.controls.maxDistance = 300;
+        this.controls.maxPolarAngle = Math.PI - 0.1; // Allow looking up from below plane
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 2);
@@ -73,14 +73,11 @@ export class SceneManager {
     }
 
     updateCamera(trainPos, planePos) {
-        // The controls target the train, and since the camera is attached to the controls,
-        // it will "follow" the train's translation while allowing rotation/zoom.
+        // Shift camera focus to the plane
+        // Smoothly move the control target to the plane's position
+        this.controls.target.lerp(planePos, 0.1);
         
-        // Smoothly move the control target to the train's position
-        this.controls.target.lerp(trainPos, 0.1);
-        
-        // We need to shift the camera position along with the train so the relative orbit is maintained
-        // OrbitControls handles rotation, but we must account for the target's movement in space
+        // Update the orbit controls
         this.controls.update();
     }
 

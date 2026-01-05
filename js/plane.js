@@ -68,6 +68,19 @@ export class Plane {
         conn.position.set(0, -1, 1); // slightly forward center of gravity
         group.add(conn);
 
+        // Add some glowing engine ports
+        const engineGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 16);
+        engineGeo.rotateX(Math.PI / 2);
+        const engineMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+        
+        const engineL = new THREE.Mesh(engineGeo, engineMat);
+        engineL.position.set(-2, -0.2, -1.8);
+        group.add(engineL);
+
+        const engineR = new THREE.Mesh(engineGeo, engineMat);
+        engineR.position.set(2, -0.2, -1.8);
+        group.add(engineR);
+
         return group;
     }
 
