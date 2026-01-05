@@ -1,14 +1,24 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls';
 
 export class SceneManager {
-    constructor() {
+    constructor(renderer) {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x050a15);
         this.scene.fog = new THREE.FogExp2(0x050a15, 0.002);
 
         // Camera setup
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.cameraOffset = new THREE.Vector3(30, 15, 30); // Offset relative to train
+        this.camera.position.set(40, 20, -40);
+
+        // Controls
+        this.controls = new OrbitControls(this.camera, renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.screenSpacePanning = false;
+        this.controls.minDistance = 10;
+        this.controls.maxDistance = 200;
+        this.controls.maxPolarAngle = Math.PI / 2; // Prevent going underground
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 2);
@@ -63,20 +73,15 @@ export class SceneManager {
     }
 
     updateCamera(trainPos, planePos) {
-        // Camera follows train but looks somewhat towards the midpoint of train and plane
-        const targetPos = trainPos.clone().add(this.cameraOffset);
+        // The controls target the train, and since the camera is attached to the controls,
+        // it will "follow" the train's translation while allowing rotation/zoom.
         
-        // Smooth follow
-        this.camera.position.lerp(targetPos, 0.1);
+        // Smoothly move the control target to the train's position
+        this.controls.target.lerp(trainPos, 0.1);
         
-        // Look at a point ahead of the train, slightly up
-        const lookAtTarget = trainPos.clone().add(new THREE.Vector3(0, 5, 20));
-        
-        // Add a bit of influence from plane height so we don't lose it if it goes high
-        const heightInfluence = Math.min((planePos.y - trainPos.y) * 0.5, 20);
-        lookAtTarget.y += heightInfluence;
-
-        this.camera.lookAt(lookAtTarget);
+        // We need to shift the camera position along with the train so the relative orbit is maintained
+        // OrbitControls handles rotation, but we must account for the target's movement in space
+        this.controls.update();
     }
 
     onResize(width, height) {

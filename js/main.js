@@ -14,7 +14,7 @@ class App {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.container.appendChild(this.renderer.domElement);
 
-        this.sceneManager = new SceneManager();
+        this.sceneManager = new SceneManager(this.renderer);
         this.simulation = new Simulation(this.sceneManager.scene);
         this.inputManager = new InputManager(this.simulation);
 
