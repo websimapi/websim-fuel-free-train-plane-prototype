@@ -15,12 +15,14 @@ export class SceneManager {
         this.controls = new OrbitControls(this.camera, renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
-        this.controls.zoomSpeed = 0.3;
-        this.controls.rotateSpeed = 0.5;
         this.controls.screenSpacePanning = false;
         this.controls.minDistance = 5;
         this.controls.maxDistance = 300;
         this.controls.maxPolarAngle = Math.PI - 0.1; // Allow looking up from below plane
+
+        // Make zoom smoother and more granular
+        this.controls.enableZoom = true;
+        this.controls.zoomSpeed = 0.3;
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 2);
@@ -76,8 +78,8 @@ export class SceneManager {
 
     updateCamera(trainPos, planePos) {
         // Shift camera focus to the plane
-        // Lock target directly to plane so zooming/rotating feels solid relative to the object
-        this.controls.target.copy(planePos);
+        // Smoothly move the control target to the plane's position
+        this.controls.target.lerp(planePos, 0.1);
         
         // Update the orbit controls
         this.controls.update();
