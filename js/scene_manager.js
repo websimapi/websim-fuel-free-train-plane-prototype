@@ -15,8 +15,8 @@ export class SceneManager {
         this.controls = new OrbitControls(this.camera, renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
-        this.controls.zoomSpeed = 0.6; // Slower zoom for more precision
-        this.controls.rotateSpeed = 0.8;
+        this.controls.zoomSpeed = 0.3;
+        this.controls.rotateSpeed = 0.5;
         this.controls.screenSpacePanning = false;
         this.controls.minDistance = 5;
         this.controls.maxDistance = 300;
@@ -76,11 +76,10 @@ export class SceneManager {
 
     updateCamera(trainPos, planePos) {
         // Shift camera focus to the plane
-        // We use a slightly faster lerp for the target to keep the plane centered
-        // but the OrbitControls damping will handle the smoothness of the motion
-        this.controls.target.lerp(planePos, 0.15);
+        // Lock target directly to plane so zooming/rotating feels solid relative to the object
+        this.controls.target.copy(planePos);
         
-        // Update the orbit controls - this applies the damping to zoom and rotation
+        // Update the orbit controls
         this.controls.update();
     }
 
