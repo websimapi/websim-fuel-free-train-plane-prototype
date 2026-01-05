@@ -55,7 +55,7 @@ class App {
         this.simulation.update(dt);
         
         // Update Camera to follow train
-        this.sceneManager.updateCamera(this.simulation.train.position, this.simulation.plane.position);
+        this.sceneManager.updateCamera(this.simulation.train.mesh.position, this.simulation.plane.mesh.position);
 
         // Render
         this.renderer.render(this.sceneManager.scene, this.sceneManager.camera);

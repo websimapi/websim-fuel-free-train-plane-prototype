@@ -10,11 +10,22 @@ export class Plane {
         new THREE.TextureLoader().load('metal_texture.png', (tex) => {
             this.mesh.traverse((child) => {
                 if (child.isMesh && child.material) {
-                    child.material.map = tex;
-                    child.material.needsUpdate = true;
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => {
+                            m.map = tex;
+                            m.needsUpdate = true;
+                        });
+                    } else {
+                        child.material.map = tex;
+                        child.material.needsUpdate = true;
+                    }
                 }
             });
         });
+    }
+
+    get position() {
+        return this.mesh.position;
     }
 
     createMesh() {
