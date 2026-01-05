@@ -8,7 +8,12 @@ export class Plane {
         this.scene.add(this.mesh);
         
         new THREE.TextureLoader().load('metal_texture.png', (tex) => {
-           // Apply to children if needed, simplified here
+            this.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.map = tex;
+                    child.material.needsUpdate = true;
+                }
+            });
         });
     }
 

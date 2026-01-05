@@ -8,8 +8,12 @@ export class Train {
         
         // Texture loader
         new THREE.TextureLoader().load('metal_texture.png', (tex) => {
-            this.mesh.material.map = tex;
-            this.mesh.material.needsUpdate = true;
+            this.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.map = tex;
+                    child.material.needsUpdate = true;
+                }
+            });
         });
     }
 
